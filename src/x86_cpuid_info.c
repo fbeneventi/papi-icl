@@ -1258,30 +1258,65 @@ intel_decode_descriptor( struct _intel_cache_info *d, PAPI_mh_level_t * L )
 	}
 }
 
-#if defined(__amd64__) || defined(__x86_64__)
 static inline void
 cpuid2( unsigned int*eax, unsigned int* ebx,
-		unsigned int*ecx, unsigned int *edx,
-		unsigned int index, unsigned int ecx_in )
-{
-	__asm__ __volatile__ ("cpuid;"
-		: "=a" (*eax), "=b" (*ebx), "=c" (*ecx), "=d" (*edx)
-		: "0" (index), "2"(ecx_in) );
-}
+               unsigned int*ecx, unsigned int *edx,
+               unsigned int index, unsigned int ecx_in )
+#if defined(__amd64__) || defined(__x86_64__)
+ {
+       __asm__ __volatile__ ("cpuid;"
+               : "=a" (*eax), "=b" (*ebx), "=c" (*ecx), "=d" (*edx)
+               : "0" (index), "2"(ecx_in) );
+ }
 #else
-static inline void
-cpuid2 ( unsigned int* eax, unsigned int* ebx, 
-                    unsigned int* ecx, unsigned int* edx, 
-                    unsigned int index, unsigned int ecx_in )
-{
+ {
   unsigned int a,b,c,d;
   __asm__ __volatile__ (".byte 0x53\n\tcpuid\n\tmovl %%ebx, %%esi\n\t.byte 0x5b"
-		: "=a" (a), "=S" (b), "=c" (c), "=d" (d) \
-		: "0" (index), "2"(ecx_in) );
+               : "=a" (a), "=S" (b), "=c" (c), "=d" (d) \
+               : "0" (index), "2"(ecx_in) );
   *eax = a; *ebx = b; *ecx = c; *edx = d;
-}
+ }
 #endif
 
+static unsigned int
+cpuid_new (unsigned int eax, char *sig)
+{
+  unsigned int *sig32 = (unsigned int *) sig;
+
+  asm volatile (
+        "xchgl %%ebx,%1; xor %%ebx,%%ebx; cpuid; xchgl %%ebx,%1"
+        : "=a" (eax), "+r" (sig32[0]), "=c" (sig32[1]), "=d" (sig32[2])
+        : "0" (eax));
+  sig[12] = 0;
+
+  return eax;
+}
+
+static void
+cpu_sig (char *out, int maxlen)
+{
+  char sig[13];
+  unsigned int base = 0x40000000, leaf = base;
+  unsigned int max_entries;
+
+  memset (sig, 0, sizeof sig);
+  max_entries = cpuid_new (leaf, sig);
+  strncat(out,sig,maxlen);
+
+  /* Most hypervisors only have information in leaf 0x40000000, but
+   * upstream Xen contains further leaf entries (in particular when
+   * used with Viridian [HyperV] extensions).  CPUID is supposed to
+   * return the maximum leaf offset in %eax, so that's what we use,
+   * but only if it looks sensible.
+   */
+  if (max_entries > 3 && max_entries < 0x10000) {
+    for (leaf = base + 0x100; leaf <= base + max_entries; leaf += 0x100) {
+      memset (sig, 0, sizeof sig);
+      cpuid_new (leaf, sig);
+      strncat(out,sig,maxlen);
+    }
+  }
+}
 
 static int
 init_intel_leaf4( PAPI_mh_info_t * mh_info, int *num_levels )
@@ -1507,30 +1542,15 @@ init_intel( PAPI_mh_info_t * mh_info, int *levels )
 int 
 _x86_detect_hypervisor(char *vendor_name)
 {
-  unsigned int eax, ebx, ecx, edx;
-  char hyper_vendor_id[13];
-
-  cpuid2(&eax, &ebx, &ecx, &edx,0x1,0);
-  /* This is the hypervisor bit, ecx bit 31 */
-  if  (ecx&0x80000000) {
-    /* There are various values in the 0x4000000X range */
-    /* It is questionable how standard they are         */
-    /* For now we just return the name.                 */
-    cpuid2(&eax, &ebx, &ecx, &edx, 0x40000000,0);
-    memcpy(hyper_vendor_id + 0, &ebx, 4);
-    memcpy(hyper_vendor_id + 4, &ecx, 4);
-    memcpy(hyper_vendor_id + 8, &edx, 4);
-    hyper_vendor_id[12] = '\0';
-    strncpy(vendor_name,hyper_vendor_id,PAPI_MAX_STR_LEN);
-    return 1;
-  }
-  else {
-    strncpy(vendor_name,"none",PAPI_MAX_STR_LEN);
-  }
-  return 0;
+  char hyper_vendor_name[PAPI_MAX_STR_LEN];
+  char *none = "none";
+  memset(hyper_vendor_name,0x0,sizeof(hyper_vendor_name));
+  cpu_sig(hyper_vendor_name, PAPI_MAX_STR_LEN);
+  if (hyper_vendor_name[0] == '\0') {
+    strncpy(vendor_name,none,PAPI_MAX_STR_LEN);
+    return 0;
+  } 
+  strncpy(vendor_name,hyper_vendor_name,PAPI_MAX_STR_LEN);
+  return 1;
 }
-
-
-
-
 
