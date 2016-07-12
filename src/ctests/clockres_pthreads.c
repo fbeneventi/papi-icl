@@ -63,6 +63,7 @@ main( int argc, char **argv )
     }
 #endif
 
+#if 0
     if (pthread_create( &t1, &attr, pthread_main, NULL )) {
        test_fail(__FILE__, __LINE__, "cannot create thread", retval);
     }
@@ -78,14 +79,16 @@ main( int argc, char **argv )
     if (pthread_create( &t4, &attr, pthread_main, NULL )) {
        test_fail(__FILE__, __LINE__, "cannot create thread", retval);
     }
+#endif
 
     pthread_main( NULL );
 
+#if 0
     pthread_join( t1, NULL );
     pthread_join( t2, NULL );
     pthread_join( t3, NULL );
     pthread_join( t4, NULL );
-
+#endif
     test_pass( __FILE__, NULL, 0 );
     exit( 0 );
 }
