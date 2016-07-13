@@ -1194,7 +1194,8 @@ papi_load_derived_events (char *pmu_str, int pmu_type, int cidx, int preset_flag
 
 			if (invalid_event) {
 				// got an error, make this entry unused
-				papi_free (results[res_idx].symbol);
+			        // preset table is statically allocated, user defined is dynamic
+			        if (!preset_flag) papi_free (results[res_idx].symbol);
 				results[res_idx].symbol = NULL;
 				continue;
 			}
@@ -1204,7 +1205,7 @@ papi_load_derived_events (char *pmu_str, int pmu_type, int cidx, int preset_flag
 			// if we did not find any terms to base this derived event on, report error
 			if (i == 0) {
 				// got an error, make this entry unused
-				papi_free (results[res_idx].symbol);
+			  if (!preset_flag) papi_free (results[res_idx].symbol);
 				results[res_idx].symbol = NULL;
 				PAPIERROR("Expected PFM event after DERIVED token at line %d of %s -- ignoring", line_no, name);
 				continue;

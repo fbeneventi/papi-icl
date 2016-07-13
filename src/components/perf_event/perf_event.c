@@ -1563,14 +1563,16 @@ static int _pe_detect_rdpmc(int default_domain) {
   }
   fd=sys_perf_event_open(&pe,0,-1,-1,0);
   if (fd<0) {
-    return PAPI_ESYS;
+    /* Do not return an error here, because on some system we may not have PERF_TYPE_HARDWARE events but
+       everything else may work! */
+    return 0;
   }
 
   /* create the mmap page */
   addr=mmap(NULL, 4096, PROT_READ, MAP_SHARED,fd,0);
   if (addr == (void *)(-1)) {
     close(fd);
-    return PAPI_ESYS;
+    return 0;
   }
 
   /* get the rdpmc info */
@@ -1666,12 +1668,14 @@ _pe_init_component( int cidx )
    /* We currently do not use rdpmc as it is slower in tests */
    /* than regular read (as of Linux 3.5)                    */
    retval=_pe_detect_rdpmc(_papi_hwd[cidx]->cmp_info.default_domain);
-   if (retval < 0 ) {
+   /* Never returns < 0 because we want perf_events to still be available
+      for non hardware events even if our test open of instructions fails. */
+   /* if (retval < 0 ) {
       strncpy(_papi_hwd[cidx]->cmp_info.disabled_reason,
 	    "sys_perf_event_open() failed, perf_event support for this platform may be broken",PAPI_MAX_STR_LEN);
 
        return retval;
-    }
+       } */
    _papi_hwd[cidx]->cmp_info.fast_counter_read = retval;
 
    /* Run the libpfm4-specific setup */
