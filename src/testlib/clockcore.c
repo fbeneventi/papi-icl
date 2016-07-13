@@ -1,5 +1,7 @@
 #include "papi_test.h"
-
+#include <values.h>
+#undef NUM_ITERS
+#define NUM_ITERS 16*1024*1024
 static char *func_name[] = {
 	"PAPI_get_real_cyc",
 	"PAPI_get_real_usec",
@@ -43,8 +45,8 @@ clock_res_check( int flag )
 
 	}
 
-	min = max = ( double ) ( elapsed_cyc[1] - elapsed_cyc[0] );
-
+	min = DBL_MAX;
+	max = DBL_MIN;
 	for ( i = 1; i < NUM_ITERS; i++ ) {
 		if ( elapsed_cyc[i] - elapsed_cyc[i - 1] < 0 ) {
 			CLOCK_ERROR = 1;
@@ -54,43 +56,27 @@ clock_res_check( int flag )
 		}
 
 		diff_cyc = elapsed_cyc[i] - elapsed_cyc[i - 1];
-		if ( min > diff_cyc )
+		if (diff_cyc != 0)
+		{ if ( min > diff_cyc )
 			min = ( double ) diff_cyc;
-		if ( max < diff_cyc )
+		  if ( max < diff_cyc )
 			max = ( double ) diff_cyc;
-		if ( diff_cyc != 0 )
-			uniq_cyc++;
-		total_cyc += diff_cyc;
+		  uniq_cyc++;
+		  total_cyc += diff_cyc;
+}
 	}
 
-	average = ( double ) total_cyc / ( NUM_ITERS - 1 );
+	average = ( double ) total_cyc / uniq_cyc;
 	std = 0;
 
 	for ( i = 1; i < NUM_ITERS; i++ ) {
 		tmp = ( double ) ( elapsed_cyc[i] - elapsed_cyc[i - 1] );
-		tmp = tmp - average;
-		std += tmp * tmp;
+			tmp = tmp - average;
+			std += tmp * tmp;
 	}
 
 	std = sqrt( std / ( NUM_ITERS - 2 ) );
-	printf( "%s: min %.3lf  max %.3lf \n", func_name[flag], min, max );
-	printf( "                   average %.3lf std %.3lf\n", average, std );
-
-	if ( !TESTS_QUIET ) {
-		if ( uniq_cyc == NUM_ITERS - 1 ) {
-			printf( "%s : %7.3f   <%7.3f\n", func_name[flag],
-					( double ) total_cyc / ( double ) ( NUM_ITERS ),
-					( double ) total_cyc / ( double ) uniq_cyc );
-		} else if ( uniq_cyc ) {
-			printf( "%s : %7.3f    %7.3f\n", func_name[flag],
-					( double ) total_cyc / ( double ) ( NUM_ITERS ),
-					( double ) total_cyc / ( double ) uniq_cyc );
-		} else {
-			printf( "%s : %7.3f   >%7.3f\n", func_name[flag],
-					( double ) total_cyc / ( double ) ( NUM_ITERS ),
-					( double ) total_cyc );
-		}
-	}
+	printf( "%21s: min %-7.2lf avg %7.2lf std %7.2lf max %10.2lf unq %7.2lf\n", func_name[flag], min, average, std, max,( double ) NUM_ITERS / ( double ) ( uniq_cyc ));
 
 	free( elapsed_cyc );
 }
