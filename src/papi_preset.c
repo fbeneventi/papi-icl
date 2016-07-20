@@ -846,7 +846,7 @@ infix_to_postfix( char *infix ) {
             PAPIERROR("A infix string (probably in user-defined presets) is too big (max allowed %d): %s", PAPI_HUGE_STR_LEN, infix );
 
         // initialize stack
-	memset( &stack, 0, 2*PAPI_HUGE_STR_LEN );
+	memset( &stack, 0, sizeof(stack));
 	stacktop = -1; 
 	push('#');
         /* initialize output string */
