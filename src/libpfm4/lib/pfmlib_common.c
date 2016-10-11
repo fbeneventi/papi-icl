@@ -125,6 +125,7 @@ static pfmlib_pmu_t *pfmlib_pmus[]=
 	&intel_snbep_unc_r3qpi1_support,
 	&intel_knc_support,
 	&intel_slm_support,
+	&intel_glm_support,
 	&intel_ivbep_unc_cb0_support,
 	&intel_ivbep_unc_cb1_support,
 	&intel_ivbep_unc_cb2_support,
@@ -201,6 +202,7 @@ static pfmlib_pmu_t *pfmlib_pmus[]=
 	&intel_hswep_unc_r3qpi1_support,
 	&intel_hswep_unc_r3qpi2_support,
 	&intel_hswep_unc_irp_support,
+	&intel_knl_support,
 	&intel_x86_arch_support, /* must always be last for x86 */
 #endif
 
@@ -675,6 +677,9 @@ pfmlib_match_forced_pmu(const char *name)
 static int
 pfmlib_is_blacklisted_pmu(pfmlib_pmu_t *p)
 {
+	char *q, *buffer;
+	int ret = 1;
+
 	if (!pfm_cfg.blacklist_pmus)
 		return 0;
 
@@ -682,15 +687,20 @@ pfmlib_is_blacklisted_pmu(pfmlib_pmu_t *p)
 	 * scan list for matching PMU names, we accept substrings.
 	 * for instance: snbep does match snbep*
 	 */
-	char *q, buffer[strlen(pfm_cfg.blacklist_pmus) + 1];
+	buffer = strdup(pfm_cfg.blacklist_pmus);
+	if (!buffer)
+		return 0;
 
 	strcpy (buffer, pfm_cfg.blacklist_pmus);
 	for (q = strtok (buffer, ","); q != NULL; q = strtok (NULL, ",")) {
 		if (strstr (p->name, q) != NULL) {
-			return 1;
+			goto done;
 		}
 	}
-	return 0;
+	ret = 0;
+done:
+	free(buffer);
+	return ret;
 }
 
 static int
@@ -904,9 +914,10 @@ pfmlib_parse_event_attr(char *str, pfmlib_event_desc_t *d)
 	s = str;
 
 	while(s) {
-		p = strchr(s, PFMLIB_ATTR_DELIM);
-		if (p)
-			*p++ = '\0';
+	        p = s;
+	        strsep(&p, PFMLIB_ATTR_DELIM);
+		/* if (p)
+		 *p++ = '\0'; */
 
 		q = strchr(s, '=');
 		if (q)
@@ -1150,9 +1161,10 @@ pfmlib_parse_equiv_event(const char *event, pfmlib_event_desc_t *d)
 	if (!str)
 		return PFM_ERR_NOMEM;
 
-	p = strchr(s, PFMLIB_ATTR_DELIM);
-	if (p)
-		*p++ = '\0';
+	p = s;
+	strsep(&p, PFMLIB_ATTR_DELIM);
+	/* if (p)
+	 *p++ = '\0'; */
 
 	match = pmu->match_event ? pmu->match_event : match_event;
 
@@ -1225,9 +1237,11 @@ pfmlib_parse_event(const char *event, pfmlib_event_desc_t *d)
 		pname = s;
 		s = p + strlen(PFMLIB_PMU_DELIM);
 	}
-	p = strchr(s, PFMLIB_ATTR_DELIM);
-	if (p)
-		*p++ = '\0';
+	p = s;
+	strsep(&p, PFMLIB_ATTR_DELIM);
+	/* if (p)
+	 *p++ = '\0'; */
+
 	/*
 	 * for each pmu
 	 */

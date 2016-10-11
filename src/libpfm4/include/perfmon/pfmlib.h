@@ -297,6 +297,10 @@ typedef enum {
 	PFM_PMU_INTEL_SKL,		/* Intel Skylake */
 
 	PFM_PMU_INTEL_BDW_EP,		/* Intel Broadwell EP */
+
+	PFM_PMU_INTEL_GLM,		/* Intel Goldmont */
+
+	PFM_PMU_INTEL_KNL,		/* Intel Knights Landing */
 	/* MUST ADD NEW PMU MODELS HERE */
 
 	PFM_PMU_MAX			/* end marker */
@@ -420,6 +424,7 @@ typedef struct {
 	size_t			size;	/* struct sizeof */
 	uint64_t		code;	/* attribute code */
 	pfm_attr_t		type;	/* attribute type */
+	int			pad;	/* padding */
 	uint64_t		idx;	/* attribute opaque index */
 	pfm_attr_ctrl_t		ctrl;	/* what is providing attr */
 	struct {
@@ -449,13 +454,13 @@ typedef struct {
 #if __WORDSIZE == 64
 #define PFM_PMU_INFO_ABI0	56
 #define PFM_EVENT_INFO_ABI0	64
-#define PFM_ATTR_INFO_ABI0	64
+#define PFM_ATTR_INFO_ABI0	72
 
 #define PFM_RAW_ENCODE_ABI0	32
 #else
 #define PFM_PMU_INFO_ABI0	44
 #define PFM_EVENT_INFO_ABI0	48
-#define PFM_ATTR_INFO_ABI0	48
+#define PFM_ATTR_INFO_ABI0	56
 
 #define PFM_RAW_ENCODE_ABI0	20
 #endif

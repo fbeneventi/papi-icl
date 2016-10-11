@@ -4,7 +4,7 @@
 *          you@cs.utk.edu
 * Mods:    Brian Sheely
 *          bsheely@eecs.utk.edu
-* Author:  Vince Weaver 
+* Author:  Vince Weaver
 *          vweaver1 @ eecs.utk.edu
 *          Merge of the libpfm3/libpfm4/pmapi-ppc64_events preset code
 */
@@ -29,13 +29,13 @@ extern int user_defined_events_count;
 static int papi_load_derived_events (char *pmu_str, int pmu_type, int cidx, int preset_flag);
 
 
-/* This routine copies values from a dense 'findem' array of events 
-   into the sparse global _papi_hwi_presets array, which is assumed 
-   to be empty at initialization. 
+/* This routine copies values from a dense 'findem' array of events
+   into the sparse global _papi_hwi_presets array, which is assumed
+   to be empty at initialization.
 
-   Multiple dense arrays can be copied into the sparse array, allowing 
-   event overloading at run-time, or allowing a baseline table to be 
-   augmented by a model specific table at init time. 
+   Multiple dense arrays can be copied into the sparse array, allowing
+   event overloading at run-time, or allowing a baseline table to be
+   augmented by a model specific table at init time.
 
    This method supports adding new events; overriding existing events, or
    deleting deprecated events.
@@ -48,7 +48,7 @@ _papi_hwi_setup_all_presets( hwi_search_t * findem, int cidx )
 
     /* dense array of events is terminated with a 0 preset.
        don't do anything if NULL pointer. This allows just notes to be loaded.
-       It's also good defensive programming. 
+       It's also good defensive programming.
      */
     if ( findem != NULL ) {
        for ( pnum = 0; ( pnum < PAPI_MAX_PRESET_EVENTS ) &&
@@ -90,7 +90,7 @@ _papi_hwi_setup_all_presets( hwi_search_t * findem, int cidx )
  
            _papi_hwi_presets[preset_index].derived_int = findem[pnum].derived;
 	   for(k=0;k<j;k++) {
-              _papi_hwi_presets[preset_index].code[k] = 
+              _papi_hwi_presets[preset_index].code[k] =
                      findem[pnum].native[k];
 	   }
 	   /* preset code list must be PAPI_NULL terminated */
@@ -130,7 +130,7 @@ _papi_hwi_cleanup_all_presets( void )
 	       papi_free(_papi_hwi_presets[preset_index].name[j]);
 	    }
 	}
-	
+
 	for(cidx=0;cidx<papi_num_components;cidx++) {
 	   _papi_hwd[cidx]->cmp_info.num_preset_events = 0;
 	}
@@ -190,7 +190,7 @@ trim_string( char *in )
 
 /*  Calls trim_string to remove blank space;
     Removes paired punctuation delimiters from
-    beginning and end of string. If the same punctuation 
+    beginning and end of string. If the same punctuation
     appears first and last (quotes, slashes) they are trimmed;
     Also checks for the following pairs: () <> {} [] */
 static inline char *
@@ -287,7 +287,7 @@ get_event_line( char *line, FILE * table, char **tmp_perfmon_events_table )
 	} else {
 		for ( i = 0;
 			  **tmp_perfmon_events_table && **tmp_perfmon_events_table != '\n';
-			  i++, ( *tmp_perfmon_events_table )++ ) 
+			  i++, ( *tmp_perfmon_events_table )++ )
 			line[i] = **tmp_perfmon_events_table;
 		if (i == 0)
 		    return 0;
@@ -788,7 +788,7 @@ int _papi_load_preset_table(char *pmu_str, int pmu_type, int cidx) {
 }
 
 // global variables
-static char stack[PAPI_HUGE_STR_LEN]; // stack
+static char stack[2*PAPI_HUGE_STR_LEN]; // stack
 static int stacktop = -1; // stack length
 
 // priority: This function returns the priority of the operator
@@ -813,22 +813,22 @@ int priority( char symbol ) {
 
 static
 int push( char symbol ) {
-        if( stacktop >= (PAPI_HUGE_STR_LEN - 1) ) {
-                INTDBG("EXIT: Stack Overflow converting Algebraic Expression:%d\n", stacktop );
-                return -1;  //***TODO: Figure out how to exit gracefully
+  if (stacktop >= 2*PAPI_HUGE_STR_LEN - 1) {
+    INTDBG("stack overflow converting algebraic expression (%d,%c)\n", stacktop,symbol );
+    return -1;  //***TODO: Figure out how to exit gracefully
   } // end if stacktop>MAX
-        stack[++stacktop] = symbol;
-        return 0;
+  stack[++stacktop] = symbol;
+  return 0;
 } // end push
 
 // pop from stack
 static
 char pop() {
-        if( stacktop < 0 ) {
-                INTDBG("EXIT: Stack Underflow converting Algebraic Expression:%d\n", stacktop );
-                return '\0';  //***TODO: Figure out how to exit gracefully
-        } // end if empty
-        return( stack[stacktop--] );
+  if( stacktop < 0 ) {
+    INTDBG("stack underflow converting algebraic expression\n" );
+    return '\0';  //***TODO: Figure out how to exit gracefully
+  } // end if empty
+  return( stack[stacktop--] );
 } // end pop
 
 /* infix_to_postfix:
@@ -850,7 +850,7 @@ infix_to_postfix( char *infix ) {
 	stacktop = -1; 
 	push('#');
         /* initialize output string */
-	memset(&postfix,0,2*PAPI_HUGE_STR_LEN);
+	memset(postfix,0,2*PAPI_HUGE_STR_LEN);
         postfixlen = 0;
 
 	for( index=0; index<strlen(infix); index++ ) {
@@ -1102,6 +1102,7 @@ papi_load_derived_events (char *pmu_str, int pmu_type, int cidx, int preset_flag
 
 			// add the proper event bits (preset or user defined bits)
 			preset = res_idx | event_type_bits;
+			(void) preset;
 
 			SUBDBG( "Use event code: %#x for %s\n", preset, t);
 
