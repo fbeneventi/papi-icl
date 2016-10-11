@@ -1278,6 +1278,8 @@ cpuid2( unsigned int*eax, unsigned int* ebx,
  }
 #endif
 
+#if 0 
+#warning "This code seg faults on some hardware"
 static unsigned int
 cpuid_new (unsigned int eax, char *sig)
 {
@@ -1287,7 +1289,7 @@ cpuid_new (unsigned int eax, char *sig)
         "xchgl %%ebx,%1; xor %%ebx,%%ebx; cpuid; xchgl %%ebx,%1"
         : "=a" (eax), "+r" (sig32[0]), "=c" (sig32[1]), "=d" (sig32[2])
         : "0" (eax));
-  sig[12] = 0;
+  // sig[12] = 0;
 
   return eax;
 }
@@ -1295,28 +1297,30 @@ cpuid_new (unsigned int eax, char *sig)
 static void
 cpu_sig (char *out, int maxlen)
 {
-  char sig[13];
-  unsigned int base = 0x40000000, leaf = base;
-  unsigned int max_entries;
-
-  memset (sig, 0, sizeof sig);
-  max_entries = cpuid_new (leaf, sig);
-  strncat(out,sig,maxlen);
-
-  /* Most hypervisors only have information in leaf 0x40000000, but
-   * upstream Xen contains further leaf entries (in particular when
-   * used with Viridian [HyperV] extensions).  CPUID is supposed to
-   * return the maximum leaf offset in %eax, so that's what we use,
-   * but only if it looks sensible.
-   */
-  if (max_entries > 3 && max_entries < 0x10000) {
-    for (leaf = base + 0x100; leaf <= base + max_entries; leaf += 0x100) {
-      memset (sig, 0, sizeof sig);
-      cpuid_new (leaf, sig);
-      strncat(out,sig,maxlen);
+    char sig[13];
+    unsigned int base = 0x40000000, leaf = base;
+    unsigned int max_entries;
+    char *a = sig;
+    memset (sig, 0, sizeof sig);
+    printf("%p %p %d\n",out,sig,maxlen);
+    max_entries = cpuid_new (leaf, sig);
+    printf("%p %p %d\n",out,a,maxlen);
+    strncat(out,a,maxlen);
+    /* Most hypervisors only have information in leaf 0x40000000, but
+     * upstream Xen contains further leaf entries (in particular when
+     * used with Viridian [HyperV] extensions).  CPUID is supposed to
+     * return the maximum leaf offset in %eax, so that's what we use,
+     * but only if it looks sensible.
+     */
+    if (max_entries > 3 && max_entries < 0x10000) {
+      for (leaf = base + 0x100; leaf <= base + max_entries; leaf += 0x100) {
+	memset (sig, 0, sizeof sig);
+	cpuid_new (leaf, sig);
+	strncat(out,sig,maxlen);
+      }
     }
-  }
 }
+#endif
 
 static int
 init_intel_leaf4( PAPI_mh_info_t * mh_info, int *num_levels )
@@ -1544,16 +1548,7 @@ _x86_detect_hypervisor(char *vendor_name)
 {
   char hyper_vendor_name[PAPI_MAX_STR_LEN];
   memset(hyper_vendor_name,0x0,sizeof(hyper_vendor_name));
-  cpu_sig(hyper_vendor_name, PAPI_MAX_STR_LEN);
-  if (hyper_vendor_name[0] == '\0') {
-    vendor_name[0] = '\0';
-    return 0;
-  } 
-  strncpy(vendor_name,hyper_vendor_name,PAPI_MAX_STR_LEN);
-  return 1;
-}
 
-#if 0
 #ifdef __linux__
   {
     char buf[1024] = "";
@@ -1575,4 +1570,12 @@ _x86_detect_hypervisor(char *vendor_name)
     } 
   }
 #endif
-#endif
+
+  if (hyper_vendor_name[0] == '\0') {
+    vendor_name[0] = '\0';
+    return 0;
+  } 
+
+  strncpy(vendor_name,hyper_vendor_name,PAPI_MAX_STR_LEN);
+  return 1;
+}
