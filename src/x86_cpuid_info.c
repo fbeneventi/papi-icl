@@ -1295,49 +1295,25 @@ cpuid_new (unsigned int eax, char *sig)
 static void
 cpu_sig (char *out, int maxlen)
 {
-#ifdef __linux__
-  {
-    char buf[1024] = "";
-    char *p = NULL;
-    FILE *f = NULL;
-    if ((f = fopen("/sys/hypervisor/type","r"))) {
-      p = fgets(buf,sizeof(buf),f);
-      if (p) {
-	buf[strcspn(buf, "\r\n")] = 0;
-	strncat(out,buf,maxlen);
-	fclose(f);
-	return;
-      } 
-      fclose(f);
-    }
-    if (access("/proc/xen",F_OK) == 0) {
-      strncat(out,"xen",maxlen);
-      return;
-    } 
-  }
-#endif
+  char sig[13];
+  unsigned int base = 0x40000000, leaf = base;
+  unsigned int max_entries;
 
-  {
-    char sig[13];
-    unsigned int base = 0x40000000, leaf = base;
-    unsigned int max_entries;
+  memset (sig, 0, sizeof sig);
+  max_entries = cpuid_new (leaf, sig);
+  strncat(out,sig,maxlen);
 
-    memset (sig, 0, sizeof sig);
-    max_entries = cpuid_new (leaf, sig);
-    strncat(out,sig,maxlen);
-    printf("(%s, %u)\n", out, max_entries);
-    /* Most hypervisors only have information in leaf 0x40000000, but
-     * upstream Xen contains further leaf entries (in particular when
-     * used with Viridian [HyperV] extensions).  CPUID is supposed to
-     * return the maximum leaf offset in %eax, so that's what we use,
-     * but only if it looks sensible.
-     */
-    if (max_entries > 3 && max_entries < 0x10000) {
-      for (leaf = base + 0x100; leaf <= base + max_entries; leaf += 0x100) {
-	memset (sig, 0, sizeof sig);
-	cpuid_new (leaf, sig);
-	strncat(out,sig,maxlen);
-      }
+  /* Most hypervisors only have information in leaf 0x40000000, but
+   * upstream Xen contains further leaf entries (in particular when
+   * used with Viridian [HyperV] extensions).  CPUID is supposed to
+   * return the maximum leaf offset in %eax, so that's what we use,
+   * but only if it looks sensible.
+   */
+  if (max_entries > 3 && max_entries < 0x10000) {
+    for (leaf = base + 0x100; leaf <= base + max_entries; leaf += 0x100) {
+      memset (sig, 0, sizeof sig);
+      cpuid_new (leaf, sig);
+      strncat(out,sig,maxlen);
     }
   }
 }
