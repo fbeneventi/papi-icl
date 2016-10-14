@@ -36,12 +36,12 @@ ifeq (,$(PFM_OBJS))
 $(PFM_LIB_PATH)/libpfm.a:
 ifneq (,${PFM_ROOT})
 ifeq ("$(CC_COMMON_NAME)","icc")
-	$(MAKE) -C $(PFM_ROOT) ARCH="$(ARCH)" CC="$(CC) $(BITFLAGS)" DBG="-g -Wall -Werror" $(FORCE_PFM_ARCH) lib
+	$(MAKE) -C $(PFM_ROOT) ARCH="$(ARCH)" CC="$(CC) $(BITFLAGS)" DBG="-g -Wall -Werror" $(FORCE_PFM_ARCH) all
 else
 ifeq (1,$(HAVE_NO_OVERRIDE_INIT))
-	$(MAKE) -C $(PFM_ROOT) ARCH="$(ARCH)" CC="$(CC) $(BITFLAGS) -Wno-override-init" $(FORCE_PFM_ARCH) lib
+	$(MAKE) -C $(PFM_ROOT) ARCH="$(ARCH)" CC="$(CC) $(BITFLAGS) -Wno-override-init" $(FORCE_PFM_ARCH) all
 else 
-	$(MAKE) -C $(PFM_ROOT) ARCH="$(ARCH)" CC="$(CC) $(BITFLAGS)" $(FORCE_PFM_ARCH) lib
+	$(MAKE) -C $(PFM_ROOT) ARCH="$(ARCH)" CC="$(CC) $(BITFLAGS)" $(FORCE_PFM_ARCH) all
 endif
 endif
 else
