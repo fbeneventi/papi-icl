@@ -29,33 +29,37 @@ papi_print_header( char *prompt, const PAPI_hw_info_t ** hwinfo )
 	printf( "%s", prompt );
 	printf
 		( "--------------------------------------------------------------------------------\n" );
-	printf( "PAPI Version             : %d.%d.%d.%d\n",
+	printf( "PAPI version             : %d.%d.%d.%d\n",
 			PAPI_VERSION_MAJOR( PAPI_VERSION ),
 			PAPI_VERSION_MINOR( PAPI_VERSION ),
 			PAPI_VERSION_REVISION( PAPI_VERSION ),
 			PAPI_VERSION_INCREMENT( PAPI_VERSION ) );
-	printf( "Vendor string and code   : %s (%d)\n", ( *hwinfo )->vendor_string,
-			( *hwinfo )->vendor );
-	printf( "Model string and code    : %s (%d)\n", ( *hwinfo )->model_string,
-			( *hwinfo )->model );
-	printf( "CPU Revision             : %f\n", ( *hwinfo )->revision );
+	printf( "Vendor string and code   : %s (%d, 0x%x)\n", ( *hwinfo )->vendor_string,
+		( *hwinfo )->vendor,( *hwinfo )->vendor );
+	printf( "Model string and code    : %s (%d, 0x%x)\n", ( *hwinfo )->model_string,
+		( *hwinfo )->model, ( *hwinfo )->model);
+	printf( "CPU revision             : %f\n", ( *hwinfo )->revision );
 	if ( ( *hwinfo )->cpuid_family > 0 )
 		printf
-			( "CPUID Info               : Family: %d  Model: %d  Stepping: %d\n",
+		  ( "CPUID (Fam-Mod-Stp) dec  : %02d-%02d-%02d\n",
 			  ( *hwinfo )->cpuid_family, ( *hwinfo )->cpuid_model,
 			  ( *hwinfo )->cpuid_stepping );
-	printf( "CPU Max Megahertz        : %d\n", ( *hwinfo )->cpu_max_mhz );
-	printf( "CPU Min Megahertz        : %d\n", ( *hwinfo )->cpu_min_mhz );
+		printf
+		  ( "CPUID (Fam-Mod-Stp) hex  : %02x-%02x-%02x\n",
+			  ( *hwinfo )->cpuid_family, ( *hwinfo )->cpuid_model,
+			  ( *hwinfo )->cpuid_stepping );
+	printf( "CPU max mhz              : %d\n", ( *hwinfo )->cpu_max_mhz );
+	printf( "CPU min mhz              : %d\n", ( *hwinfo )->cpu_min_mhz );
+	printf( "Total cores              : %d\n", ( *hwinfo )->totalcpus );
 	if ( ( *hwinfo )->threads > 0 )
-		printf( "Hdw Threads per core     : %d\n", ( *hwinfo )->threads );
+	printf( "SMT threads per core     : %d\n", ( *hwinfo )->threads );
 	if ( ( *hwinfo )->cores > 0 )
-		printf( "Cores per Socket         : %d\n", ( *hwinfo )->cores );
+	printf( "Cores per socket         : %d\n", ( *hwinfo )->cores );
 	if ( ( *hwinfo )->sockets > 0 )
-		printf( "Sockets                  : %d\n", ( *hwinfo )->sockets );
+	printf( "Sockets                  : %d\n", ( *hwinfo )->sockets );
 	if ( ( *hwinfo )->nnodes > 0 )
-		printf( "NUMA Nodes               : %d\n", ( *hwinfo )->nnodes );
-	printf( "CPUs per Node            : %d\n", ( *hwinfo )->ncpu );
-	printf( "Total CPUs               : %d\n", ( *hwinfo )->totalcpus );
+	printf( "Cores per NUMA region    : %d\n", ( *hwinfo )->ncpu );
+	printf( "NUMA regions             : %d\n", ( *hwinfo )->nnodes );
 	printf( "Running in a VM          : %s\n", ( *hwinfo )->virtualized?
 		"yes":"no");
 	if ( (*hwinfo)->virtualized) {

@@ -1039,6 +1039,8 @@ _pe_libpfm4_shutdown(papi_vector_t *my_vector,
 /** @class  _pe_libpfm4_init
  *  @brief  Initialize the libpfm4 code
  *
+ *  @param[in] component
+ *        -- pointer to component structure
  *  @param[in] event_table
  *        -- native event table struct
  *
@@ -1048,7 +1050,7 @@ _pe_libpfm4_shutdown(papi_vector_t *my_vector,
  */
 
 int
-_pe_libpfm4_init(papi_vector_t *my_vector, int cidx,
+_pe_libpfm4_init(papi_vector_t *component, int cidx,
 		   struct native_event_table_t *event_table,
 		   int pmu_type) {
 
@@ -1067,7 +1069,8 @@ _pe_libpfm4_init(papi_vector_t *my_vector, int cidx,
    event_table->native_events=calloc(NATIVE_EVENT_CHUNK,
 					   sizeof(struct native_event_t));
    if (event_table->native_events==NULL) {
-      return PAPI_ENOMEM;
+     strncpy(component->cmp_info.disabled_reason,"calloc NATIVE_EVENT_CHUNK failed",PAPI_MAX_STR_LEN);
+     return PAPI_ENOMEM;
    }
    event_table->allocated_native_events=NATIVE_EVENT_CHUNK;
 
@@ -1097,7 +1100,7 @@ _pe_libpfm4_init(papi_vector_t *my_vector, int cidx,
 	 ncnt+=pinfo.nevents;
 
 	 if (j < PAPI_PMU_MAX) {
-	     my_vector->cmp_info.pmu_names[j++] = strdup(pinfo.name);
+	     component->cmp_info.pmu_names[j++] = strdup(pinfo.name);
 	 }
        
          if (pmu_type&PMU_TYPE_CORE) {
@@ -1121,28 +1124,29 @@ _pe_libpfm4_init(papi_vector_t *my_vector, int cidx,
    SUBDBG("%d native events detected on %d pmus\n",ncnt,detected_pmus);
 
    if (!found_default) {
-      SUBDBG("Could not find default PMU\n");
-      return PAPI_ECMP;
-   }
-
-   if (found_default>1) {
-     PAPIERROR("Found too many default PMUs!\n");
+     strncpy(component->cmp_info.disabled_reason,"could not find default PMU",PAPI_MAX_STR_LEN);
      return PAPI_ECMP;
    }
 
-   my_vector->cmp_info.num_native_events = ncnt;
+   if (found_default>1) {
+     strncpy(component->cmp_info.disabled_reason,"found more than one default PMU",PAPI_MAX_STR_LEN);
+     return PAPI_ECMP;
+   }
 
-   my_vector->cmp_info.num_cntrs = event_table->default_pmu.num_cntrs+
+   component->cmp_info.num_native_events = ncnt;
+
+   component->cmp_info.num_cntrs = event_table->default_pmu.num_cntrs+
                                    event_table->default_pmu.num_fixed_cntrs;
 
-   SUBDBG( "num_counters: %d\n", my_vector->cmp_info.num_cntrs );
+   SUBDBG( "num_counters: %d\n", component->cmp_info.num_cntrs );
    
    /* Setup presets, only if Component 0 */
    if (cidx==0) {
       retval = _papi_load_preset_table( (char *)event_table->default_pmu.name, 
 				     event_table->default_pmu.pmu, cidx );
       if ( retval ) {
-         return retval;
+	strncpy(component->cmp_info.disabled_reason,"_papi_load_preset_table failed",PAPI_MAX_STR_LEN);
+	return retval;
       }
    }
 

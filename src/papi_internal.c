@@ -611,6 +611,20 @@ PAPIERROR( char *format, ... )
 	}
 }
 
+void
+PAPIWARN( char *format, ... )
+{
+	va_list args;
+	if ( ( _papi_hwi_error_level != PAPI_QUIET ) ||
+		 ( getenv( "PAPI_VERBOSE" ) ) ) {
+		va_start( args, format );
+		fprintf( stderr, "\nPAPI Warning: " );
+		vfprintf( stderr, format, args );
+		fprintf( stderr, ".\n" );
+		va_end( args );
+	}
+}
+
 static int
 default_debug_handler( int errorCode )
 {

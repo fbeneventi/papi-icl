@@ -101,77 +101,74 @@ _pe_libpfm4_get_cidx() {
 
 static int _pe_set_domain( hwd_control_state_t *ctl, int domain);
 
-/* Check for processor support */
-/* Can be used for generic checking, though in general we only     */
-/* check for pentium4 here because support was broken for multiple */
-/* kernel releases and the usual standard detections did not       */
-/* handle this.  So we check for pentium 4 explicitly.             */
-static int
-processor_supported(int vendor, int family) {
-
-   /* Error out if kernel too early to support p4 */
-   if (( vendor == PAPI_VENDOR_INTEL ) && (family == 15)) {
-      if (_papi_os_info.os_version < LINUX_VERSION(2,6,35)) {
-         PAPIERROR("Pentium 4 not supported on kernels before 2.6.35");
-         return PAPI_ENOSUPP;
-      }
-   }
-   return PAPI_OK;
-}
 
 /* Fix up the config based on what CPU/Vendor we are running on */
-static int
-pe_vendor_fixups(papi_vector_t *vector)
+static void
+pe_vendor_kernel_fixup(papi_vector_t *vector, int paranoid)
 {
-     /* powerpc */
-     /* On IBM and Power6 Machines default domain should include supervisor */
-  if ( _papi_hwi_system_info.hw_info.vendor == PAPI_VENDOR_IBM ) {
-     vector->cmp_info.available_domains |=
-                  PAPI_DOM_KERNEL | PAPI_DOM_SUPERVISOR;
-     if (strcmp(_papi_hwi_system_info.hw_info.model_string, "POWER6" ) == 0 ) {
-        vector->cmp_info.default_domain =
-                  PAPI_DOM_USER | PAPI_DOM_KERNEL | PAPI_DOM_SUPERVISOR;
-     }
+  /* Kernel multiplexing is broken prior to kernel 2.6.34 */
+  /* The fix was probably git commit:                     */
+  /*     45e16a6834b6af098702e5ea6c9a40de42ff77d8         */
+  if (_papi_os_info.os_version < LINUX_VERSION(2,6,34)) {
+    PAPIWARN("Kernel mode multiplexing may not work");
+    vector->cmp_info.kernel_multiplex = 0;
+    vector->cmp_info.num_mpx_cntrs = PAPI_MAX_SW_MPX_EVENTS;
   }
 
-  if ( _papi_hwi_system_info.hw_info.vendor == PAPI_VENDOR_MIPS ) {
-     vector->cmp_info.available_domains |= PAPI_DOM_KERNEL;
+  /* PPC */
+
+	  if ( _papi_hwi_system_info.hw_info.vendor == PAPI_VENDOR_IBM ) {
+    vector->cmp_info.available_domains |=
+      PAPI_DOM_KERNEL | PAPI_DOM_SUPERVISOR;
+    if (strcmp(_papi_hwi_system_info.hw_info.model_string, "POWER6" ) == 0 ) {
+      vector->cmp_info.default_domain =
+	PAPI_DOM_USER | PAPI_DOM_KERNEL | PAPI_DOM_SUPERVISOR;
+    }
   }
+  
+  /* MIPS */
+
+  if ( _papi_hwi_system_info.hw_info.vendor == PAPI_VENDOR_MIPS ) {
+    vector->cmp_info.available_domains |= PAPI_DOM_KERNEL;
+  }
+  
+  /* x86 */
 
   if ((_papi_hwi_system_info.hw_info.vendor == PAPI_VENDOR_INTEL) ||
       (_papi_hwi_system_info.hw_info.vendor == PAPI_VENDOR_AMD)) {
-     vector->cmp_info.fast_real_timer = 1;
+    vector->cmp_info.fast_real_timer = 1;
+  }
+  
+  /* ARM */
+
+  if ( _papi_hwi_system_info.hw_info.vendor == PAPI_VENDOR_ARM) {
+    /* Some ARMv7 and earlier could not measure	*/
+    /* KERNEL and USER separately.		*/
+    /* Whitelist CortexA7 and CortexA15		*/
+    /* There might be more			*/
+    if ((_papi_hwi_system_info.hw_info.cpuid_family < 8) &&
+	(_papi_hwi_system_info.hw_info.cpuid_model!=0xc07) &&
+	(_papi_hwi_system_info.hw_info.cpuid_model!=0xc0f)) {
+      vector->cmp_info.available_domains |=
+	PAPI_DOM_USER | PAPI_DOM_KERNEL | PAPI_DOM_SUPERVISOR;
+      vector->cmp_info.default_domain =
+	PAPI_DOM_USER | PAPI_DOM_KERNEL | PAPI_DOM_SUPERVISOR;
+    }
+  }
+  
+  /* CRAY */
+
+  if ( _papi_hwi_system_info.hw_info.vendor == PAPI_VENDOR_CRAY ) {
+    vector->cmp_info.available_domains |= PAPI_DOM_OTHER;
   }
 
-	/* ARM */
-	if ( _papi_hwi_system_info.hw_info.vendor == PAPI_VENDOR_ARM) {
+  /* Perf Events Paranoid settings */
 
-		/* Some ARMv7 and earlier could not measure	*/
-		/* KERNEL and USER separately.			*/
-
-		/* Whitelist CortexA7 and CortexA15		*/
-		/* There might be more				*/
-
-		if ((_papi_hwi_system_info.hw_info.cpuid_family < 8) &&
-			(_papi_hwi_system_info.hw_info.cpuid_model!=0xc07) &&
-			(_papi_hwi_system_info.hw_info.cpuid_model!=0xc0f)) {
-
-			vector->cmp_info.available_domains |=
-				PAPI_DOM_USER | PAPI_DOM_KERNEL | PAPI_DOM_SUPERVISOR;
-			vector->cmp_info.default_domain =
-				PAPI_DOM_USER | PAPI_DOM_KERNEL | PAPI_DOM_SUPERVISOR;
-		}
-	}
-
-	/* CRAY */
-	if ( _papi_hwi_system_info.hw_info.vendor == PAPI_VENDOR_CRAY ) {
-		vector->cmp_info.available_domains |= PAPI_DOM_OTHER;
-	}
-
-	return PAPI_OK;
+  if ((paranoid==2) && (getuid()!=0)) {
+     PAPIWARN("/proc/sys/kernel/perf_event_paranoid value of 2 prohibits counting in kernel domain");
+     vector->cmp_info.available_domains &= ~PAPI_DOM_KERNEL;
+  }
 }
-
-
 
 /******************************************************************/
 /******** Kernel Version Dependent Routines  **********************/
@@ -1538,75 +1535,28 @@ _pe_init_control_state( hwd_control_state_t *ctl )
   return PAPI_OK;
 }
 
-/* Check the mmap page for rdpmc support */
-static int _pe_detect_rdpmc(int default_domain) {
+/* Check perf event features */
+
+static int _pe_detect_perf_event(papi_vector_t *cmp, int *paranoid, int *swpmu_exists, 
+				 int *hwpmu_exists, int *rdpmc_exists, int *watchdog_exists) {
 
   struct perf_event_attr pe;
-  int fd,rdpmc_exists=1;
-  void *addr;
-  struct perf_event_mmap_page *our_mmap;
+  int fd;
+  char *reason = cmp->cmp_info.disabled_reason;
 
-  /* Create a fake instructions event so we can read a mmap page */
-  memset(&pe,0,sizeof(struct perf_event_attr));
+  /* Clear state */
 
-  pe.type=PERF_TYPE_HARDWARE;
-  pe.size=sizeof(struct perf_event_attr);
-  pe.config=PERF_COUNT_HW_INSTRUCTIONS;
+  *paranoid = 0;
+  *swpmu_exists = 0;
+  *hwpmu_exists = 0;
+  *rdpmc_exists = 0;
+  *watchdog_exists = 0;
 
-  /* There should probably be a helper function to handle this      */
-  /* we break on some ARM because there is no support for excluding */
-  /* kernel.                                                        */
-  if (default_domain & PAPI_DOM_KERNEL ) {
-  }
-  else {
-    pe.exclude_kernel=1;
-  }
-  fd=sys_perf_event_open(&pe,0,-1,-1,0);
-  if (fd<0) {
-    return PAPI_ESYS;
-  }
+  /* The official way to detect if perf_event support exists */
 
-  /* create the mmap page */
-  addr=mmap(NULL, 4096, PROT_READ, MAP_SHARED,fd,0);
-  if (addr == (void *)(-1)) {
-    close(fd);
-    return PAPI_ESYS;
-  }
-
-  /* get the rdpmc info */
-  our_mmap=(struct perf_event_mmap_page *)addr;
-  if (our_mmap->cap_usr_rdpmc==0) {
-    rdpmc_exists=0;
-  }
-
-  /* close the fake event */
-  munmap(addr,4096);
-  close(fd);
-
-  return rdpmc_exists;
-
-}
-
-
-/* Initialize the perf_event component */
-static int
-_pe_init_component( int cidx )
-{
-
-  int retval;
-  int paranoid_level;
-
-  FILE *fff;
-
-  our_cidx=cidx;
-
-  /* The is the official way to detect if perf_event support exists */
-  /* The file is called perf_counter_paranoid on 2.6.31             */
-  /* currently we are lazy and do not support 2.6.31 kernels        */
-  fff=fopen("/proc/sys/kernel/perf_event_paranoid","r");
+  FILE *fff=fopen("/proc/sys/kernel/perf_event_paranoid","r");
   if (fff==NULL) {
-    strncpy(_papi_hwd[cidx]->cmp_info.disabled_reason,
-	    "perf_event support not detected",PAPI_MAX_STR_LEN);
+    strncpy(reason,"/proc/sys/kernel/perf_event_paranoid not found",PAPI_MAX_STR_LEN);
     return PAPI_ENOCMP;
   }
 
@@ -1614,85 +1564,129 @@ _pe_init_component( int cidx )
   /* 1 means normal counter access            */
   /* 0 means you can access CPU-specific data */
   /* -1 means no restrictions                 */
-  retval=fscanf(fff,"%d",&paranoid_level);
-  if (retval!=1) fprintf(stderr,"Error reading paranoid level\n");
+
+  if (fscanf(fff,"%d",paranoid) != 1) {
+    strncpy(reason,"/proc/sys/kernel/perf_event_paranoid could not be read",PAPI_MAX_STR_LEN);
+    return PAPI_ENOCMP;
+  }
   fclose(fff);
 
-  if ((paranoid_level==2) && (getuid()!=0)) {
-     SUBDBG("/proc/sys/kernel/perf_event_paranoid prohibits kernel counts");
-     _papi_hwd[cidx]->cmp_info.available_domains &=~PAPI_DOM_KERNEL;
+  /* Test a user mode software event */
+
+  memset(&pe,0,sizeof(struct perf_event_attr));
+  pe.size=sizeof(struct perf_event_attr);
+  pe.type=PERF_TYPE_SOFTWARE;
+  pe.config=0; /* First event in perf's sw kernel table, cpu-clock */
+  pe.exclude_kernel=1;
+  fd=sys_perf_event_open(&pe,0,-1,-1,0);
+  if (fd<0) {
+    strcpy(reason,strerror(errno));
+    return PAPI_ENOCMP;
+  }
+  *swpmu_exists = 1;
+
+  /* Test the mmaped feature page for things */
+
+  struct perf_event_mmap_page *addr = (struct perf_event_mmap_page *)mmap(NULL, 4096, PROT_READ, MAP_SHARED,fd,0);
+  if ((void *)(addr) == (void *)(-1)) {
+    strcpy(reason,strerror(errno));
+    close(fd);
+    return PAPI_ENOCMP;
+  }    
+  SUBDBG("Software event 0: Version: 0x%0x, Capabilities: 0x%0llx, Running: %lld, Enabled: %lld\n",addr->version,addr->capabilities,addr->time_running,addr->time_enabled);
+  munmap(addr,4096);
+  close(fd);
+
+  /* Test a user mode hardware event */
+
+  memset(&pe,0,sizeof(struct perf_event_attr));
+  pe.size=sizeof(struct perf_event_attr);
+  pe.type=PERF_TYPE_HARDWARE;
+  pe.config=0; /* First event in perf's hw kernel table, cycles */
+  pe.exclude_kernel=1;
+  fd=sys_perf_event_open(&pe,0,-1,-1,0);
+  if (fd!=-1) {
+    *hwpmu_exists = 1;
+
+    /* Test the mmaped feature page for cap_usr_rdpmc */
+    addr = (struct perf_event_mmap_page *)mmap(NULL, 4096, PROT_READ, MAP_SHARED,fd,0);
+    if ((void *)(addr) == (void *)(-1)) {
+      strcpy(reason,strerror(errno));
+      close(fd);
+      return PAPI_ENOCMP;
+    }    
+    SUBDBG("Hardware event 0: Version: 0x%0x, Capabilities: 0x%0llx, Running: %lld, Enabled: %lld\n",addr->version,addr->capabilities,addr->time_running,addr->time_enabled);
+    *rdpmc_exists=addr->cap_usr_rdpmc;
+    munmap(addr,4096);
+    close(fd);
   }
 
   /* Detect NMI watchdog which can steal counters */
-  if (_linux_detect_nmi_watchdog()) {
-    SUBDBG("The Linux nmi_watchdog is using one of the performance "
-	   "counters, reducing the total number available.\n");
-  }
-  /* Kernel multiplexing is broken prior to kernel 2.6.34 */
-  /* The fix was probably git commit:                     */
-  /*     45e16a6834b6af098702e5ea6c9a40de42ff77d8         */
-  if (_papi_os_info.os_version < LINUX_VERSION(2,6,34)) {
-    _papi_hwd[cidx]->cmp_info.kernel_multiplex = 0;
-    _papi_hwd[cidx]->cmp_info.num_mpx_cntrs = PAPI_MAX_SW_MPX_EVENTS;
-  }
-  else {
-    _papi_hwd[cidx]->cmp_info.kernel_multiplex = 1;
-    _papi_hwd[cidx]->cmp_info.num_mpx_cntrs = PERF_EVENT_MAX_MPX_COUNTERS;
+
+  if ((fff = fopen("/proc/sys/kernel/nmi_watchdog","r"))) {
+    int watchdog_value = 0;
+    if (fscanf(fff,"%d",&watchdog_value)==1) {
+      SUBDBG("Watchdog value: %d\n",watchdog_value);
+      if (watchdog_value>0) {
+	*watchdog_exists=1;
+	PAPIWARN("Watchdog timer exists and is stealing a counter!");
+      }
+    }
+    fclose(fff);
   }
 
-  /* Check that processor is supported */
-  if (processor_supported(_papi_hwi_system_info.hw_info.vendor,
-			  _papi_hwi_system_info.hw_info.cpuid_family)!=
-      PAPI_OK) {
-    fprintf(stderr,"warning, your processor is unsupported\n");
-    /* should not return error, as software events should still work */
-  }
+  return(PAPI_OK);
+}
 
-  /* Setup mmtimers, if appropriate */
-  retval=mmtimer_setup();
+
+/* Initialize the perf_event component */
+static int
+_pe_init_component( int cidx )
+{
+  int retval;
+  int sw, hw, rdpmc, watchdog, paranoid;
+  papi_vector_t *component = _papi_hwd[cidx];
+
+  /* Reset the disabled reason and version string
+     not currently clear if necessary if structure 
+     is statically allocated */
+
+  strcpy(component->cmp_info.support_version,"");
+  strcpy(component->cmp_info.disabled_reason,"");
+
+  /* Check for working perf event and features */
+  
+  retval = _pe_detect_perf_event(component, &paranoid, &sw, &hw, &rdpmc, &watchdog);
+  if (retval)
+    return retval;
+  
+  /* Run the libpfm4 library init wrapper (so we don't reinit inside multiple components) */
+  retval = _papi_libpfm4_init(component);
+  if (retval) 
+    return retval;
+  
+  /* Run the detection routines (happens in many components) */
+  retval = _pe_libpfm4_init(component, cidx,
+			    &perf_native_event_table,
+			    PMU_TYPE_CORE | PMU_TYPE_OS);
   if (retval) {
-    strncpy(_papi_hwd[cidx]->cmp_info.disabled_reason,
-	    "Error initializing mmtimer",PAPI_MAX_STR_LEN);
+    _papi_libpfm4_shutdown(component);
     return retval;
   }
 
-   /* Set the overflow signal */
-   _papi_hwd[cidx]->cmp_info.hardware_intr_sig = SIGRTMIN + 2;
+  /* At this point, we will succeed, so just set up important vars */
+  pe_vendor_kernel_fixup(component,paranoid);
+  
+  /* Use a real time (and queued) signal */
+  component->cmp_info.hardware_intr_sig = SIGRTMIN + 2;
 
-   /* Run Vendor-specific fixups */
-   pe_vendor_fixups(_papi_hwd[cidx]);
+  /* Indicate fast user-mode counter read if we found it */
+  component->cmp_info.fast_counter_read = rdpmc;
 
-   /* Detect if we can use rdpmc (or equivalent) */
-   /* We currently do not use rdpmc as it is slower in tests */
-   /* than regular read (as of Linux 3.5)                    */
-   retval=_pe_detect_rdpmc(_papi_hwd[cidx]->cmp_info.default_domain);
-   if (retval < 0 ) {
-      strncpy(_papi_hwd[cidx]->cmp_info.disabled_reason,
-	    "sys_perf_event_open() failed, perf_event support for this platform may be broken",PAPI_MAX_STR_LEN);
+  /* Ugly global */
+  our_cidx = cidx;
 
-       return retval;
-    }
-   _papi_hwd[cidx]->cmp_info.fast_counter_read = retval;
-
-   /* Run the libpfm4-specific setup */
-   retval = _papi_libpfm4_init(_papi_hwd[cidx]);
-   if (retval) {
-     strncpy(_papi_hwd[cidx]->cmp_info.disabled_reason,
-	     "Error initializing libpfm4",PAPI_MAX_STR_LEN);
-     return retval;
-   }
-
-   retval = _pe_libpfm4_init(_papi_hwd[cidx], cidx,
-			       &perf_native_event_table,
-                               PMU_TYPE_CORE | PMU_TYPE_OS);
-   if (retval) {
-     strncpy(_papi_hwd[cidx]->cmp_info.disabled_reason,
-	     "Error initializing libpfm4",PAPI_MAX_STR_LEN);
-     return retval;
-   }
-
-   return PAPI_OK;
-
+  return PAPI_OK;
 }
 
 /* Shutdown the perf_event component */
@@ -1703,7 +1697,7 @@ _pe_shutdown_component( void ) {
   _pe_libpfm4_shutdown(&_perf_event_vector, &perf_native_event_table);
 
   /* Shutdown libpfm4 */
-  _papi_libpfm4_shutdown();
+  _papi_libpfm4_shutdown(&_perf_event_vector);
 
   return PAPI_OK;
 }
@@ -2278,6 +2272,8 @@ papi_vector_t _perf_event_vector = {
 
       .hardware_intr = 1,
       .kernel_profile = 1,
+      .kernel_multiplex = 1,
+      .num_mpx_cntrs = PERF_EVENT_MAX_MPX_COUNTERS,
 
       /* component specific cmp_info initializations */
       .fast_virtual_timer = 0,

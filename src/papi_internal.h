@@ -451,6 +451,7 @@ hwd_context_t *_papi_hwi_get_context( EventSetInfo_t * ESI, int *is_dirty );
 extern int _papi_hwi_error_level;
 extern PAPI_debug_handler_t _papi_hwi_debug_handler;
 void PAPIERROR( char *format, ... );
+void PAPIWARN( char *format, ... );
 int _papi_hwi_assign_eventset( EventSetInfo_t * ESI, int cidx );
 void _papi_hwi_free_EventSet( EventSetInfo_t * ESI );
 int _papi_hwi_create_eventset( int *EventSet, ThreadInfo_t * handle );
@@ -488,5 +489,8 @@ int _papi_hwi_invalid_cmp( int cidx );
 int _papi_hwi_component_index( int event_code );
 int _papi_hwi_native_to_eventcode(int cidx, int event_code, int ntv_idx, const char *event_name);
 int _papi_hwi_eventcode_to_native(int event_code);
+
+#include "papi_vector.h"
+#include <string.h>
 
 #endif /* PAPI_INTERNAL_H */

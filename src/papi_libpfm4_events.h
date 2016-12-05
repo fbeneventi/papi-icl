@@ -5,8 +5,7 @@
 * File:    papi_libpfm4_events.h
 */
 
-#include "perfmon/pfmlib.h"
-#include PEINCLUDE
+#include "perfmon/pfmlib_perf_event.h"
 
 struct native_event_t {
   int component;
@@ -40,7 +39,7 @@ struct native_event_table_t {
 /* Prototypes for libpfm name library access */
 
 int _papi_libpfm4_error( int pfm_error );
-int _papi_libpfm4_shutdown(void);
+int _papi_libpfm4_shutdown(papi_vector_t *my_vector);
 int _papi_libpfm4_init(papi_vector_t *my_vector);
 
 #endif // _PAPI_LIBPFM4_EVENTS_H

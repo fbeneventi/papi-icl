@@ -663,7 +663,7 @@ _peu_shutdown_component( void ) {
   _peu_libpfm4_shutdown(&_perf_event_uncore_vector, &uncore_native_event_table);
 
   /* Shutdown libpfm4 */
-  _papi_libpfm4_shutdown();
+  _papi_libpfm4_shutdown(&_perf_event_uncore_vector);
 
   return PAPI_OK;
 }
